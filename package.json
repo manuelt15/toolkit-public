@@ -1,0 +1,24 @@
+{
+  "name": "@manuelt15/toolkit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Flujo para empezar proyectos con agentes de IA: módulos, skills y sesiones con cierre.",
+  "license": "MIT",
+  "author": "manuelt15 (https://github.com/manuelt15)",
+  "repository": { "type": "git", "url": "git+https://github.com/manuelt15/toolkit-public.git" },
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "os": ["darwin", "linux"],
+  "files": [
+    "bin/",
+    "src/",
+    "catalogo/",
+    "modulos/",
+    "arquitecturas/",
+    "plantillas/",
+    "assets/"
+  ],
+  "scripts": {
+    "audit": "scripts/audit.sh"
+  }
+}
