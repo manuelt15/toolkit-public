@@ -10,6 +10,9 @@
     "url": "git+https://github.com/manuelt15/toolkit-public.git"
   },
   "type": "module",
+  "bin": {
+    "toolkit": "bin/toolkit.mjs"
+  },
   "engines": {
     "node": ">=22"
   },
@@ -27,7 +30,12 @@
     "assets/"
   ],
   "scripts": {
+    "build": "node scripts/build-catalog.mjs",
+    "test": "node --test test/*.test.mjs",
     "audit": "scripts/audit.sh",
     "prepublishOnly": "echo \"Publicación bloqueada hasta F6 (audit y ok del mantenedor)\" && exit 1"
+  },
+  "devDependencies": {
+    "yaml": "2.9.1"
   }
 }

@@ -10,6 +10,7 @@
 #   scope         proyecto | global
 #   cuando        siempre: true, o módulos que la traen (y opcion, si el módulo tiene opciones)
 #   nivel         incluida (no se quita) | obligatoria | recomendada | opcional
+#   incluye       ids que ya trae esta colección (no se ofrecen sueltas)
 #   conflicts_with  ids que no deben convivir con esta
 #   licencia      SPDX del repo; NONE = el repo no declara licencia (solo se referencia)
 #   verificado    fecha en que se comprobó repo, nombre y comando en la fuente
@@ -391,7 +392,8 @@
   scope: proyecto
   cuando: { modulos: [ingenieria], opcion: mattpocock }
   nivel: recomendada
-  conflicts_with: [addyosmani-agent-skills, grill-me, tdd]
+  incluye: [grill-me, tdd]
+  conflicts_with: [addyosmani-agent-skills]
   licencia: MIT
   verificado: 2026-11-07
 
