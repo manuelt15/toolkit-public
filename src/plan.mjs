@@ -62,10 +62,3 @@ export function planSkills(catalog, { modules, options = {}, globalSkills = {} }
   const byLevel = Object.fromEntries(NIVELES.map((n) => [n, project.filter((s) => s.nivel === n)]));
   return { byLevel, global, pendingOptions, covered: [...covered] };
 }
-
-export function planForArchitecture(catalog, { architecture, extraModules = [], options, globalSkills }) {
-  const arch = catalog.architectures[architecture];
-  if (!arch) throw new Error(`arquitectura desconocida: ${architecture}. Opciones: ${Object.keys(catalog.architectures).join(", ")}`);
-  const modules = resolveModules(catalog, [...arch.recommended, ...extraModules]);
-  return { architecture: arch, modules, optionalModules: arch.optional.filter((m) => !modules.includes(m)), ...planSkills(catalog, { modules, options, globalSkills }) };
-}
