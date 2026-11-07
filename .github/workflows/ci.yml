@@ -1,0 +1,58 @@
+# Tests en cada push y PR. En main y en cada tag v*, además, el audit: Gitleaks y la denylist
+# sobre el paquete real (npm pack) y sobre todo el historial. Publicar no lo hace la CI.
+name: ci
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: node scripts/build-catalog.mjs --check
+      - run: npm test
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: npm ci
+      - name: Gitleaks 8.30.1 (versión y checksum fijos)
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/gl.tgz" https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gl.tgz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin" && tar -xzf "$RUNNER_TEMP/gl.tgz" -C "$RUNNER_TEMP/bin" gitleaks
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Denylist (secreto del repo, nunca en el código)
+        env:
+          DENYLIST: ${{ secrets.TOOLKIT_DENYLIST }}
+        run: |
+          [ -n "$DENYLIST" ] || { echo "Falta el secreto TOOLKIT_DENYLIST: el audit no pasa a ciegas"; exit 1; }
+          printf '%s\n' "$DENYLIST" > "$RUNNER_TEMP/denylist.txt"
+          echo "TOOLKIT_DENYLIST=$RUNNER_TEMP/denylist.txt" >> "$GITHUB_ENV"
+      - name: Audit del paquete
+        run: scripts/audit.sh --pack
+      - name: Historial completo
+        run: |
+          gitleaks git --redact --no-banner
+          n=$(git log -p --all | grep -ciE -f <(grep -vE '^\s*(#|$)' "$TOOLKIT_DENYLIST") || true)
+          echo "Coincidencias de la denylist en el historial: $n"
+          [ "$n" = "0" ]
