@@ -72,7 +72,8 @@ export function detectIdentities({ home, cwd }) {
 // --git acepta el email exacto o la etiqueta (global, github.com/usuario...)
 export function pickIdentity(detected, wanted) {
   if (!wanted) return detected.decided;
-  const c = detected.candidates.find((x) => x.email === wanted || x.label === wanted || x.label.endsWith(`/${wanted}`));
+  const c = detected.candidates.find((x) => x.email === wanted || x.label === wanted || x.label.endsWith(`/${wanted}`)
+    || x.label.startsWith(`${wanted} (`) || x.label.includes(`(${wanted})`));
   if (!c) throw new Error(`--git ${wanted}: no coincide con ninguna identidad detectada (${detected.candidates.map((x) => x.label).join(", ") || "ninguna"})`);
   return c;
 }

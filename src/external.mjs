@@ -3,6 +3,9 @@
 // manual, porque algunos piden antes añadir su marketplace.
 import { spawnSync } from "node:child_process";
 
+// Solo agentes conocidos: la lista puede venir de un lock que viaja con un repo ajeno
+export const AGENT_IDS = ["claude-code", "codex", "hermes-agent"];
+export const knownAgents = (agents) => (agents ?? []).filter((a) => AGENT_IDS.includes(a));
 const agentFlags = (agents) => agents.flatMap((a) => ["-a", a]);
 
 /**
@@ -10,9 +13,11 @@ const agentFlags = (agents) => agents.flatMap((a) => ["-a", a]);
  * @param agents  agentes detectados (claude-code, codex, hermes-agent)
  * @returns [{ id, kind: "run"|"manual", argv?, text, obligatoria }]
  */
-export function externalSteps(catalog, skills, agents) {
+export function externalSteps(catalog, skills, agentsIn) {
   const steps = [];
+  const agents = knownAgents(agentsIn);
   for (const sel of skills) {
+    if (!Object.hasOwn(catalog.skills, sel.id)) continue;
     const s = catalog.skills[sel.id];
     if (s.origen !== "externa" || sel.usarGlobal) continue;
     const obligatoria = s.nivel === "obligatoria";
@@ -37,7 +42,10 @@ export function externalSteps(catalog, skills, agents) {
 
 /** Ejecuta los pasos "run". `runner` se inyecta en los tests para no tocar la red. */
 export function runSteps(steps, { cwd, runner = defaultRunner }) {
-  return steps.filter((s) => s.kind === "run").map((s) => ({ ...s, ok: runner(s.argv, cwd) }));
+  return steps.filter((s) => s.kind === "run").map((s) => {
+    console.log(`  → ejecutando: ${s.argv.join(" ")}`); // siempre se ve el comando completo antes
+    return { ...s, ok: runner(s.argv, cwd) };
+  });
 }
 
 function defaultRunner(argv, cwd) {

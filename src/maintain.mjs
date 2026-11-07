@@ -3,9 +3,13 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, cpSync, symlinkSync, lstatSync, readlinkSync, renameSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { agentsMd, hashDir } from "./project.mjs";
-import { externalSteps, runSteps } from "./external.mjs";
+import { externalSteps, runSteps, knownAgents } from "./external.mjs";
 
 const lockPath = (cwd) => join(cwd, "toolkit.lock.json");
+// El lock viaja con el repo: puede venir de otra persona. Un id solo vale si está en el
+// catálogo y tiene forma de nombre de skill; origen y scope salen del catálogo, no del lock.
+const SAFE_ID = /^[a-z0-9][a-z0-9-]*$/;
+const trusted = (catalog, id) => typeof id === "string" && SAFE_ID.test(id) && Object.hasOwn(catalog.skills, id);
 export function readLock(cwd) {
   if (!existsSync(lockPath(cwd))) throw new Error("No hay toolkit.lock.json: este no es un proyecto montado con tk.");
   return JSON.parse(readFileSync(lockPath(cwd), "utf8"));
@@ -72,7 +76,7 @@ export function listSkills(catalog, { cwd, globalSkills }) {
 
 export function addSkill(cwd, id, { catalog, root, version, globalSkills = {}, consent = false, runner, log = console.log }) {
   const lock = readLock(cwd);
-  const s = catalog.skills[id];
+  const s = trusted(catalog, id) ? catalog.skills[id] : null;
   if (!s) throw new Error(`"${id}" no está en el catálogo. Mira \`tk skills\` o busca con la skill find-skills.`);
   const prev = lock.skills.find((x) => x.id === id);
   if (prev?.scope === "proyecto" && (prev.origen === "propia" ? hasSkillMd(cwd, id) : prev.estado === "instalada")) {
@@ -132,15 +136,23 @@ export function doctor(cwd, { catalog, root, version, fix = false, hasTk = true 
   if (/<!-- toolkit:public[^>]*-->[\s\S]*<!-- \/toolkit:public -->/.test(agents)) res.ok.push("AGENTS.md con el bloque del toolkit");
   else res.errors.push("AGENTS.md no tiene el bloque <!-- toolkit:public --> (el flujo de sesión no llega a los agentes)");
 
+  if (lock.perfil && !new RegExp(`<!-- toolkit:profile ${lock.perfil} -->`).test(agents)) {
+    res.warnings.push(`AGENTS.md no tiene el bloque del perfil ${lock.perfil}`);
+  }
+
   for (const f of ["memory/MEMORY.md", "memory/pending.md"]) {
     if (existsSync(join(cwd, f))) continue;
     if (fix) { mkdirSync(join(cwd, "memory"), { recursive: true }); cpSync(join(root, "plantillas", f), join(cwd, f)); res.fixed.push(`${f} recreado desde la plantilla`); }
     else res.errors.push(`Falta ${f}`);
   }
 
-  for (const s of lock.skills) {
+  const lockSkills = Array.isArray(lock.skills) ? lock.skills : [];
+  for (const s of lockSkills.filter((x) => !trusted(catalog, x?.id))) {
+    res.errors.push(`El lock nombra una skill que no está en el catálogo o con un id no válido: ${JSON.stringify(String(s?.id)).slice(0, 60)}. No se toca.`);
+  }
+  for (const s of lockSkills.filter((x) => trusted(catalog, x?.id))) {
     if (s.scope !== "proyecto") continue;
-    if (s.origen === "propia") {
+    if (catalog.skills[s.id].origen === "propia") {
       const dir = join(cwd, ".agents/skills", s.id);
       if (!hasSkillMd(cwd, s.id)) {
         if (fix) { cpSync(join(root, "assets/skills", s.id), dir, { recursive: true }); res.fixed.push(`.agents/skills/${s.id} repuesta`); }
@@ -158,7 +170,7 @@ export function doctor(cwd, { catalog, root, version, fix = false, hasTk = true 
     }
   }
 
-  const agentes = lock.agentes ?? [];
+  const agentes = knownAgents(lock.agentes);
   if (agentes.includes("claude-code")) {
     const link = join(cwd, ".claude/skills");
     if (isLink(link, "../.agents/skills")) res.ok.push(".claude/skills enlazado");
@@ -172,7 +184,7 @@ export function doctor(cwd, { catalog, root, version, fix = false, hasTk = true 
     else res.warnings.push(text ? ".claude/settings.json sin hook de tk start: añádelo a mano si quieres el brief automático" : "Falta .claude/settings.json con el hook de tk start");
   }
   if (agentes.includes("hermes-agent")) {
-    for (const s of lock.skills.filter((x) => x.scope === "proyecto" && x.origen === "propia")) {
+    for (const s of lockSkills.filter((x) => trusted(catalog, x?.id) && x.scope === "proyecto" && catalog.skills[x.id].origen === "propia")) {
       const link = join(cwd, ".hermes/skills", s.id), target = `../../.agents/skills/${s.id}`;
       if (isLink(link, target)) continue;
       if (!exists(link) && fix) { mkdirSync(dirname(link), { recursive: true }); symlinkSync(target, link); res.fixed.push(`.hermes/skills/${s.id} enlazado`); }

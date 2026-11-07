@@ -430,6 +430,30 @@ test("doctor: sin lock falla y no escribe nada", () => {
   assert.deepEqual(readdirSync(cwd), []);
 });
 
+test("doctor --fix no escribe fuera del proyecto con un lock manipulado", () => {
+  const cwd = tmp();
+  execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, log: quiet });
+  const lockP = join(cwd, "toolkit.lock.json");
+  const lock = JSON.parse(readFileSync(lockP, "utf8"));
+  lock.skills.push({ id: "../../fuera", scope: "proyecto", origen: "propia" }, { id: "__proto__", scope: "proyecto", origen: "propia" });
+  lock.agentes = ["claude-code", "--evil", "hermes-agent"];
+  writeFileSync(lockP, JSON.stringify(lock));
+  const r = doctor(cwd, { ...MAINT, fix: true });
+  assert.equal(r.errors.filter((e) => /no está en el catálogo o con un id no válido/.test(e)).length, 2);
+  assert.ok(!existsSync(join(cwd, "..", "fuera")));
+  assert.ok(!existsSync(join(cwd, ".agents", "fuera")));
+});
+
+test("los agentes desconocidos nunca llegan a los argumentos de npx", () => {
+  const steps = externalSteps(catalog, [{ id: "tdd" }], ["codex", "--evil", "-g"]);
+  assert.deepEqual(steps[0].argv.filter((a, i, all) => all[i - 1] === "-a"), ["codex"]);
+  assert.ok(!steps[0].argv.includes("--evil"));
+  const cwd = tmp();
+  execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, log: quiet });
+  assert.throws(() => addSkill(cwd, "__proto__", { ...MAINT, log: quiet }), /no está en el catálogo/);
+  assert.throws(() => addSkill(cwd, "../cierre", { ...MAINT, log: quiet }), /no está en el catálogo/);
+});
+
 test("skills add: externa sin --install queda pendiente en lock, pending y AGENTS.md", () => {
   const cwd = tmp();
   execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, log: quiet });
@@ -459,6 +483,59 @@ test("skills: lista agrupada con estado", () => {
   assert.match(out, /● humanizer/);
   assert.match(out, /… shadcn/);
   assert.match(out, /○ stripe/);
+});
+
+// ── perfil ──────────────────────────────────────────────────────────────────
+
+import { loadProfile, applyProfileToIdentities } from "../src/profile.mjs";
+import { pickIdentity } from "../src/identity.mjs";
+
+function profileDir() {
+  const dir = tmp();
+  writeFileSync(join(dir, "profile.json"), JSON.stringify({ nombre: "yo", agents_md: "AGENTS.md", identidades: [
+    { cuenta: "personal", github: "yo", email: "yo@example.org" },
+    { cuenta: "trabajo", github: "yo-work", detectar: "global" },
+  ] }));
+  writeFileSync(join(dir, "AGENTS.md"), "## Reglas del autor\n- Sin raya larga.\n");
+  return dir;
+}
+
+test("perfil: sin perfil no pasa nada; con --profile inexistente da error", () => {
+  assert.equal(loadProfile({ home: tmp(), env: {} }), null);
+  assert.throws(() => loadProfile({ home: tmp(), flag: "/no/existe.json", env: {} }), /No encuentro el perfil/);
+});
+
+test("perfil: se encuentra en ~/.config/tk/profile.json aunque sea un enlace", () => {
+  const dir = profileDir(), home = tmp();
+  mkdirSync(join(home, ".config/tk"), { recursive: true });
+  symlinkSync(join(dir, "profile.json"), join(home, ".config/tk/profile.json"));
+  const p = loadProfile({ home, env: {} });
+  assert.equal(p.nombre, "yo");
+  assert.match(p.block, /Reglas del autor/);
+});
+
+test("perfil: nombra las identidades y --git personal elige la del perfil", () => {
+  const home = gitHome("[user]\n\tname = Yo\n\temail = work@example.org\n");
+  const det = applyProfileToIdentities(detectIdentities({ home, cwd: tmp() }), loadProfile({ home, flag: join(profileDir(), "profile.json"), env: {} }));
+  assert.deepEqual(det.candidates.map((c) => c.label), ["trabajo (yo-work)", "personal (yo)"]);
+  assert.equal(det.decided, null, "dos identidades: hay que elegir");
+  const c = pickIdentity(det, "personal");
+  assert.equal(c.email, "yo@example.org");
+  assert.equal(c.name, "Yo");
+});
+
+test("perfil: bloque propio en AGENTS.md, nombre en el lock y ningún email en el proyecto", () => {
+  const cwd = tmp();
+  const cfg = newConfig();
+  cfg.profile = loadProfile({ home: tmp(), flag: join(profileDir(), "profile.json"), env: {} });
+  execute(cfg, catalog, { cwd, ...ROOTS, dryRun: false, log: quiet });
+  const agents = readFileSync(join(cwd, "AGENTS.md"), "utf8");
+  assert.match(agents, /<!-- \/toolkit:public -->\n\n<!-- toolkit:profile yo -->\n## Reglas del autor[\s\S]*<!-- \/toolkit:profile -->\n\n<!-- toolkit:project -->/);
+  assert.equal(JSON.parse(readFileSync(join(cwd, "toolkit.lock.json"), "utf8")).perfil, "yo");
+  for (const f of ["AGENTS.md", "toolkit.lock.json"]) assert.ok(!readFileSync(join(cwd, f), "utf8").includes("@example.org"), f);
+  assert.deepEqual(doctor(cwd, MAINT).warnings.filter((w) => /perfil/.test(w)), []);
+  writeFileSync(join(cwd, "AGENTS.md"), agents.replace(/<!-- toolkit:profile[\s\S]*?<!-- \/toolkit:profile -->\n\n/, ""));
+  assert.ok(doctor(cwd, MAINT).warnings.some((w) => /bloque del perfil yo/.test(w)));
 });
 
 // ── paquete ─────────────────────────────────────────────────────────────────

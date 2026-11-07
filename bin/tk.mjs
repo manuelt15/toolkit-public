@@ -12,6 +12,7 @@ import { externalSteps } from "../src/external.mjs";
 import { startBrief, close, commitClose } from "../src/session.mjs";
 import { today } from "../src/new.mjs";
 import { listSkills, addSkill, doctor } from "../src/maintain.mjs";
+import { loadProfile, applyProfileToIdentities } from "../src/profile.mjs";
 import { spawnSync } from "node:child_process";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -38,7 +39,8 @@ Sin teclado (CI, VM, la skill nuevo-proyecto): --preset y --yes o --dry-run.
   --also-in-project <a,b>  skills que ya están en global y se quieren también en el proyecto
   --description <texto>  qué es el proyecto, en una frase
   --design <x>           ruta a DESIGN.md o tokens, enlace de Figma, o "reference"
-  --git <email|cuenta>   identidad de git si hay varias
+  --git <email|cuenta>   identidad de git si hay varias (con perfil: personal, trabajo...)
+  --profile <ruta>       perfil propio (por defecto TOOLKIT_PROFILE o ~/.config/tk/profile.json)
   --install <modo>       comandos de terceros: todos | obligatorios | ninguno (por defecto ninguno)
   --dry-run              enseña lo que haría, sin escribir nada
   --yes                  aplica sin preguntar
@@ -74,6 +76,7 @@ async function main(argv) {
       slug: { type: "string" },
       commit: { type: "boolean", default: false },
       fix: { type: "boolean", default: false },
+      profile: { type: "string" },
     },
   });
   if (values.help) { console.log(HELP); return 0; }
@@ -121,13 +124,16 @@ async function main(argv) {
   const home = process.env.TOOLKIT_HOME ?? homedir();
   const catalog = JSON.parse(readFileSync(join(ROOT, "catalogo", "catalog.json"), "utf8"));
   const detected = detect({ home, cwd });
-  const ids = detectIdentities({ home, cwd });
+  const profile = loadProfile({ home, flag: values.profile });
+  const ids = applyProfileToIdentities(detectIdentities({ home, cwd }), profile);
+  if (profile) console.log(`Perfil: ${profile.nombre}`);
   const dryRun = values["dry-run"];
   const interactive = !values.yes && !dryRun && process.stdin.isTTY && process.stdout.isTTY;
 
   if (interactive) {
     const w = await import("../src/wizard.mjs");
     const config = await w.runWizard(catalog, detected, { detected: ids });
+    config.profile = profile;
     const steps = externalSteps(catalog, config.skills, config.agents);
     const summary = [
       `Arquitectura: ${catalog.architectures[config.architecture].title}`,
@@ -157,6 +163,7 @@ async function main(argv) {
     description: values.description,
     design: designFromFlag(values.design),
   }, detected, identity);
+  config.profile = profile;
   console.log(`${dryRun ? "Plan (dry-run: no se escribe nada)" : "Aplicando"} en ${detected.folder.empty ? "carpeta vacía" : "carpeta con contenido"}:`);
   execute(config, catalog, { cwd, root: ROOT, version: VERSION, dryRun, consent: values.install });
   return 0;

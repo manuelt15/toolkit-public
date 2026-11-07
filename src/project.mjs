@@ -58,6 +58,12 @@ export function agentsMd(config, catalog, version) {
   }
   L.push("<!-- /toolkit:public -->");
   L.push("");
+  if (config.profile?.block) {
+    L.push(`<!-- toolkit:profile ${config.profile.nombre} -->`);
+    L.push(config.profile.block);
+    L.push("<!-- /toolkit:profile -->");
+    L.push("");
+  }
   L.push("<!-- toolkit:project -->");
   L.push("## Este proyecto");
   L.push(config.description?.trim() || "(describe aquí qué es y para quién)");
@@ -143,6 +149,7 @@ export function buildOps(config, catalog, { root, version }) {
     modulos: config.modules,
     opciones: config.options ?? {},
     agentes: config.agents,
+    perfil: config.profile?.nombre ?? null,
     git: config.identity ? { cuenta: config.identity.label, motivo: config.identityReason } : null,
     diseno: config.modules.includes("diseno") ? { origen: config.design?.kind ?? "reference" } : null,
     skills: config.skills.map((s) => {
