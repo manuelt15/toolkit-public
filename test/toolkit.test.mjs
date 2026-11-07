@@ -319,6 +319,13 @@ test("start: brief con proyecto, pendientes y git", () => {
   assert.match(b, /tk close/);
 });
 
+test("close: en un proyecto recién montado y commiteado, la primera sesión sí se cierra", () => {
+  const cwd = projectWithCommit(); // el primer commit incluye memory/handovers-archive/.gitkeep
+  const r = close(cwd, { today: "2026-11-07", slug: "primera", log: quiet });
+  assert.notEqual(r.nothing, true);
+  assert.match(readFileSync(join(cwd, "memory/handovers-archive/HANDOVER-2026-11-07-primera.md"), "utf8"), /inicio/);
+});
+
 test("close: sin cambios no escribe nada", () => {
   const cwd = projectWithCommit();
   spawnSync("git", ["commit", "-q", "--allow-empty", "-m", "x", "--", "memory/"], { cwd });

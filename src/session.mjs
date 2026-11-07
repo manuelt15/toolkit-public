@@ -148,7 +148,8 @@ export function checklist(cwd, lock) {
 const slugify = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "sesion";
 
 function changesSinceLastClose(cwd) {
-  const base = git(cwd, ["log", "-1", "--format=%H", "--", "memory/handovers-archive"]);
+  // El último cierre es el último commit que trajo un handover (no el .gitkeep de la carpeta)
+  const base = git(cwd, ["log", "-1", "--format=%H", "--", "memory/handovers-archive/HANDOVER-*.md"]) || null;
   const range = base ? [`${base}..HEAD`] : [];
   const commits = (git(cwd, ["log", "--format=%h %s", ...range]) ?? "").split("\n").filter(Boolean);
   const stat = git(cwd, ["diff", "--stat", ...(base ? [base] : [])]) ?? "";
