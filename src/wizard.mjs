@@ -67,11 +67,13 @@ export async function runWizard(catalog, detected, identity) {
     options: elegibles.map((s) => ({
       value: s.id,
       label: s.id,
-      hint: cut(`${s.nivel === "opcional" ? "opcional · " : ""}${s.para_que}${s.global ? " · ya global" : ""}${s.verificado === false ? " · sin verificar" : ""}`, 110),
+      hint: cut(`${s.aviso ? "AVISO · " : ""}${s.nivel === "opcional" ? "opcional · " : ""}${s.para_que}${s.global ? " · ya global" : ""}${s.verificado === false ? " · sin verificar" : ""}`, 110),
     })),
     initialValues: choices.recomendadas.map((s) => s.id),
     required: false,
   })) : [];
+
+  for (const s of elegibles.filter((x) => chosen.includes(x.id) && x.aviso)) p.log.warn(`${s.id}: ${s.aviso}`);
 
   const sugeridas = choices.recomendadas.filter((s) => !chosen.includes(s.id));
   if (sugeridas.length) {
@@ -157,11 +159,12 @@ export async function confirmApply(summary) {
 export async function askConsent(steps) {
   const run = steps.filter((s) => s.kind === "run");
   if (!run.length) return "ninguno";
-  p.note(run.map((s) => `${s.obligatoria ? "[obligatoria] " : ""}${s.text}`).join("\n"), "Comandos de terceros (código de sus repos)");
+  p.note(run.map((s) => `${s.obligatoria ? "[obligatoria] " : ""}${s.text}${s.aviso ? `\n  aviso: ${s.aviso}` : ""}`).join("\n"), "Comandos de terceros (código de sus repos)");
   return ask(await p.select({
     message: `¿Ejecuto estos ${run.length} comandos?`,
     options: [
       { value: "todos", label: "Todos" },
+      ...(run.some((s) => s.global) ? [{ value: "proyecto", label: "Solo los del proyecto", hint: "los globales (-g) quedan en memory/pending.md" }] : []),
       { value: "obligatorios", label: "Solo los obligatorios" },
       { value: "ninguno", label: "Ninguno", hint: "quedan apuntados en memory/pending.md" },
     ],

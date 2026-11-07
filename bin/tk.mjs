@@ -11,7 +11,7 @@ import { configFromFlags, execute, folderIsSafe } from "../src/new.mjs";
 import { externalSteps } from "../src/external.mjs";
 import { startBrief, close, commitClose } from "../src/session.mjs";
 import { today } from "../src/new.mjs";
-import { listSkills, addSkill, doctor } from "../src/maintain.mjs";
+import { listSkills, addSkill, removeSkill, doctor } from "../src/maintain.mjs";
 import { loadProfile, applyProfileToIdentities } from "../src/profile.mjs";
 import { spawnSync } from "node:child_process";
 
@@ -25,6 +25,7 @@ const HELP = `Uso: tk [new|start|close] [opciones]
   tk close --commit      commitea memory/ (sin push) si no quedan huecos sin rellenar
   tk skills              catálogo agrupado con estado (proyecto, global, pendiente)
   tk skills add <id>     añade una skill al proyecto (con --install todos ejecuta su comando)
+  tk skills remove <id>  la quita del proyecto (las del flujo no se quitan)
   tk doctor [--fix]      comprueba el proyecto contra el lock; --fix repara lo local
 
 tk new:
@@ -41,7 +42,7 @@ Sin teclado (CI, VM, la skill nuevo-proyecto): --preset y --yes o --dry-run.
   --design <x>           ruta a DESIGN.md o tokens, enlace de Figma, o "reference"
   --git <email|cuenta>   identidad de git si hay varias (con perfil: personal, trabajo...)
   --profile <ruta>       perfil propio (por defecto TOOLKIT_PROFILE o ~/.config/tk/profile.json)
-  --install <modo>       comandos de terceros: todos | obligatorios | ninguno (por defecto ninguno)
+  --install <modo>       comandos de terceros: todos | proyecto | obligatorios | ninguno (por defecto ninguno)
   --dry-run              enseña lo que haría, sin escribir nada
   --yes                  aplica sin preguntar
   -h, --help
@@ -104,6 +105,12 @@ async function main(argv) {
         addSkill(cwd, id, { catalog, root: ROOT, version: VERSION, globalSkills, consent: values.install === "todos" });
         return 0;
       }
+      if (positionals[1] === "remove") {
+        const id = positionals[2];
+        if (!id) { console.error("Uso: tk skills remove <id>"); return 2; }
+        removeSkill(cwd, id, { catalog, version: VERSION, consent: values.install === "todos" });
+        return 0;
+      }
       console.log(listSkills(catalog, { cwd, globalSkills }));
       return 0;
     }
@@ -117,7 +124,7 @@ async function main(argv) {
     return r.errors.length ? 1 : 0;
   }
   if (cmd !== "new") { console.error(`Comando desconocido: ${cmd}\n\n${HELP}`); return 2; }
-  if (!["todos", "obligatorios", "ninguno"].includes(values.install)) { console.error("--install: todos | obligatorios | ninguno"); return 2; }
+  if (!["todos", "proyecto", "obligatorios", "ninguno"].includes(values.install)) { console.error("--install: todos | proyecto | obligatorios | ninguno"); return 2; }
 
   const cwd = process.cwd();
   if (!folderIsSafe(cwd)) { console.error("No se monta un proyecto en tu carpeta personal. Crea una carpeta para el proyecto."); return 2; }

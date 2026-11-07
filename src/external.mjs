@@ -35,7 +35,7 @@ export function externalSteps(catalog, skills, agentsIn) {
     }
     const argv = s.instalar.split(" ").flatMap((t) => (t === "{agentes}" ? agentFlags(targets) : [t]));
     argv.push("-y");
-    steps.push({ id: s.id, kind: "run", obligatoria, argv, text: argv.join(" ") });
+    steps.push({ id: s.id, kind: "run", obligatoria, global: s.scope === "global", aviso: s.aviso ?? null, argv, text: argv.join(" ") });
   }
   return steps;
 }

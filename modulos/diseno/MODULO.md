@@ -6,7 +6,7 @@ gives: Componentes shadcn sobre Radix construidos desde tu sistema de diseño, s
 costs: Dependencias de shadcn y @shadcn/lint; definir DESIGN.md antes de la primera pantalla
 requires: []
 conflicts: []
-skills: [shadcn, design-taste-frontend, emil-design-eng, apple-design, animation-vocabulary, improve-animations, find-animation-opportunities, review-animations, pick-ui-library]
+skills: [diseno-propio, shadcn, design-taste-frontend, emil-design-eng, apple-design, animation-vocabulary, improve-animations, find-animation-opportunities, review-animations, pick-ui-library]
 ---
 
 # Módulo: diseño

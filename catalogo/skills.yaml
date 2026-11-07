@@ -13,6 +13,7 @@
 #   incluye       ids que ya trae esta colección (no se ofrecen sueltas)
 #   conflicts_with  ids que no deben convivir con esta
 #   licencia      SPDX del repo; NONE = el repo no declara licencia (solo se referencia)
+#   aviso         lo que el usuario debe saber antes de instalarla (se enseña en el wizard)
 #   verificado    fecha en que se comprobó repo, nombre y comando en la fuente
 
 # ── Flujo (propias) ─────────────────────────────────────────────────────────
@@ -125,14 +126,23 @@
   licencia: MIT
   verificado: 2026-11-07
 
+- id: diseno-propio
+  para_que: Toda la UI sale de DESIGN.md; si falta un token se pregunta; checklist anti-genérico
+  origen: propia
+  scope: proyecto
+  cuando: { modulos: [diseno] }
+  nivel: obligatoria
+  licencia: MIT
+
 - id: design-taste-frontend
-  para_que: Evita interfaces genéricas ("anti-slop") con criterio de diseño
+  para_que: Criterio anti-genérico para quien no tiene sistema de diseño (elige paletas por su cuenta)
   origen: externa
   repo: Leonxlnx/taste-skill
   instalar: npx skills add Leonxlnx/taste-skill --skill design-taste-frontend {agentes}
   scope: proyecto
   cuando: { modulos: [diseno] }
-  nivel: recomendada
+  nivel: opcional
+  aviso: "skills.sh la evalúa como riesgo crítico (Gen) y medio (Snyk) a 2026-11-07: ~1.600 ficheros, lanza Chrome sin ventana y descarga de CDNs. Choca con un DESIGN.md propio."
   licencia: MIT
   verificado: 2026-11-07
 

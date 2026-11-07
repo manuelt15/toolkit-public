@@ -52,6 +52,7 @@ export function planSkills(catalog, { modules, options = {}, globalSkills = {} }
     plugin_claude: s.plugin_claude,
     licencia: s.licencia,
     verificado: s.verificado ?? null,
+    aviso: s.aviso ?? null,
     porModulos: (s.cuando?.modulos ?? []).filter((m) => modules.includes(m)),
     global: globalSkills[s.id] ?? null,
   });

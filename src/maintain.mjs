@@ -1,6 +1,6 @@
 // Mantenimiento de un proyecto ya montado: `tk skills` (catálogo con estado y add) y
 // `tk doctor` (lock contra disco; --fix repara lo local). Todo parte de toolkit.lock.json.
-import { existsSync, readFileSync, writeFileSync, mkdirSync, cpSync, symlinkSync, lstatSync, readlinkSync, renameSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, cpSync, symlinkSync, lstatSync, readlinkSync, rmSync, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { agentsMd, hashDir } from "./project.mjs";
 import { externalSteps, runSteps, knownAgents } from "./external.mjs";
@@ -65,7 +65,7 @@ export function listSkills(catalog, { cwd, globalSkills }) {
     else if (l?.estado === "pendiente") { mark = "…"; note = "pendiente de instalar"; }
     const g = groupOf(catalog, s);
     if (!groups.has(g)) groups.set(g, []);
-    groups.get(g).push(`   ${mark} ${s.id.padEnd(34)} ${s.para_que}${note ? `  (${note})` : ""}`);
+    groups.get(g).push(`   ${mark} ${s.id.padEnd(34)} ${s.para_que}${note ? `  (${note})` : ""}${s.aviso ? `\n     aviso: ${s.aviso}` : ""}`);
   }
   const out = [];
   for (const [g, lines] of groups) out.push(`  ${g.toUpperCase()}`, ...lines, "");
@@ -83,6 +83,7 @@ export function addSkill(cwd, id, { catalog, root, version, globalSkills = {}, c
     log(`= ${id} ya está en el proyecto.`);
     return { changed: false };
   }
+  if (s.aviso) log(`! aviso de ${id}: ${s.aviso}`);
   if (globalSkills[id]) log(`· ${id} ya está en global (${globalSkills[id].dirs.join(", ")}); se añade también al proyecto, para que viaje con el repo.`);
 
   let entry;
@@ -112,6 +113,39 @@ export function addSkill(cwd, id, { catalog, root, version, globalSkills = {}, c
   const warn = refreshAgentsPublic(cwd, lock, catalog, version);
   if (warn) log(`! ${warn}`);
   return { changed: true, entry };
+}
+
+// Quita una skill del proyecto. Las incluidas y obligatorias no se quitan (son el flujo).
+export function removeSkill(cwd, id, { catalog, version, consent = false, runner, log = console.log }) {
+  const lock = readLock(cwd);
+  const s = trusted(catalog, id) ? catalog.skills[id] : null;
+  if (!s) throw new Error(`"${id}" no está en el catálogo.`);
+  const prev = lock.skills.find((x) => x.id === id);
+  if (!prev) { log(`= ${id} no está en este proyecto.`); return { changed: false }; }
+  if (s.nivel === "incluida" || (s.nivel === "obligatoria" && s.origen === "propia")) {
+    throw new Error(`${id} es parte del flujo (${s.nivel}) y no se quita.`);
+  }
+  if (s.origen === "propia") {
+    rmSync(join(cwd, ".agents/skills", id), { recursive: true, force: true });
+    const hermes = join(cwd, ".hermes/skills", id);
+    if (isLink(hermes, `../../.agents/skills/${id}`)) unlinkSync(hermes);
+    log(`- .agents/skills/${id}`);
+  } else if (prev.estado === "instalada") {
+    // La instaló `npx skills`: la quita la misma herramienta (también sus enlaces por agente)
+    const argv = ["npx", "skills", "remove", id, ...(s.scope === "global" ? ["-g"] : []), "-y"];
+    if (!consent) {
+      log(`· comando (no ejecutado, usa --install todos): ${argv.join(" ")}`);
+      return { changed: false };
+    }
+    const [r] = runSteps([{ id, kind: "run", argv, text: argv.join(" ") }], { cwd, runner });
+    if (!r.ok) throw new Error(`Falló: ${argv.join(" ")}`);
+  }
+  lock.skills = lock.skills.filter((x) => x.id !== id);
+  writeLock(cwd, lock);
+  const warn = refreshAgentsPublic(cwd, lock, catalog, version);
+  if (warn) log(`! ${warn}`);
+  log(`- ${id} quitada del proyecto`);
+  return { changed: true };
 }
 
 function appendPending(cwd, line) {

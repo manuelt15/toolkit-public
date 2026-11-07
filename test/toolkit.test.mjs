@@ -98,6 +98,24 @@ test("la colección de Matt Pocock tapa grill-me y tdd sueltas", () => {
   assert.ok(!all.includes("grill-me") && !all.includes("tdd"));
 });
 
+test("diseno trae diseno-propio como obligatoria y Taste solo como opcional con aviso", () => {
+  const p = planSkills(catalog, { modules: ["diseno"] });
+  assert.ok(ids(p.byLevel.obligatoria).includes("diseno-propio"));
+  const taste = p.byLevel.opcional.find((s) => s.id === "design-taste-frontend");
+  assert.ok(taste, "Taste sigue disponible como opcional");
+  assert.match(taste.aviso, /riesgo crítico/);
+  assert.ok(!ids(p.byLevel.recomendada).includes("design-taste-frontend"));
+});
+
+test("el aviso de una skill se enseña antes de ejecutar su comando", () => {
+  const cwd = tmp();
+  const lines = [];
+  const cfg = newConfig({ skills: ["design-taste-frontend"] });
+  execute(cfg, catalog, { cwd, ...ROOTS, dryRun: true, log: (l) => lines.push(l) });
+  const out = lines.join("\n");
+  assert.ok(out.indexOf("aviso de design-taste-frontend") < out.indexOf("ejecutaría: npx skills add Leonxlnx"), out);
+});
+
 test("mapas arrastra diseno por requires", () => {
   assert.deepEqual(resolveModules(catalog, ["mapas"]), ["diseno", "mapas"]);
 });
@@ -219,6 +237,16 @@ test("consentimiento: solo obligatorios ejecuta solo esos y el lock dice qué se
   const agents = readFileSync(join(cwd, "AGENTS.md"), "utf8");
   assert.doesNotMatch(agents, /`better-auth-security-best-practices`: .*pendiente de instalar/);
   assert.match(agents, /`resend`: .*pendiente/);
+});
+
+test("consentimiento: solo proyecto deja fuera los globales (-g)", () => {
+  const cwd = tmp();
+  const ran = [];
+  execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, consent: "proyecto", runner: (a) => { ran.push(a.join(" ")); return true; }, log: quiet });
+  assert.ok(ran.length > 0);
+  assert.ok(ran.every((c) => !c.includes(" -g ")), ran.join("\n"));
+  const lock = JSON.parse(readFileSync(join(cwd, "toolkit.lock.json"), "utf8"));
+  assert.equal(lock.skills.find((s) => s.id === "grill-me").estado, "pendiente");
 });
 
 test("plugins de Claude: paso manual en Claude y la skill para los demás agentes", () => {
@@ -388,7 +416,7 @@ test("el proyecto trae el hook de Claude y no pisa un settings.json existente", 
 
 // ── skills y doctor ─────────────────────────────────────────────────────────
 
-import { doctor, addSkill, listSkills } from "../src/maintain.mjs";
+import { doctor, addSkill, removeSkill, listSkills } from "../src/maintain.mjs";
 const MAINT = { catalog, root: ROOT, version: "0.0.0-test" };
 
 test("doctor: verde en un proyecto recién montado", () => {
@@ -473,6 +501,25 @@ test("skills add: con consentimiento se ejecuta y queda instalada; desconocida d
   addSkill(cwd, "tdd", { ...MAINT, consent: true, runner: (a) => { ran.push(a.join(" ")); return true; }, log: quiet });
   assert.match(ran[0], /mattpocock\/skills --skill tdd/);
   assert.throws(() => addSkill(cwd, "no-existe", { ...MAINT, log: quiet }), /no está en el catálogo/);
+});
+
+test("skills remove: externa instalada se quita con su comando y sale del lock y de AGENTS.md", () => {
+  const cwd = tmp();
+  execute(newConfig({ modules: ["testing"], skills: ["tdd"] }), catalog, { cwd, ...ROOTS, dryRun: false, consent: "todos", runner: () => true, log: quiet });
+  const ran = [];
+  removeSkill(cwd, "tdd", { ...MAINT, consent: true, runner: (a) => { ran.push(a.join(" ")); return true; }, log: quiet });
+  assert.deepEqual(ran, ["npx skills remove tdd -y"]);
+  const lock = JSON.parse(readFileSync(join(cwd, "toolkit.lock.json"), "utf8"));
+  assert.ok(!lock.skills.some((s) => s.id === "tdd"));
+  assert.doesNotMatch(readFileSync(join(cwd, "AGENTS.md"), "utf8"), /`tdd`/);
+});
+
+test("skills remove: las del flujo no se quitan y sin --install no ejecuta nada", () => {
+  const cwd = tmp();
+  execute(newConfig({ modules: ["testing"], skills: ["tdd"] }), catalog, { cwd, ...ROOTS, dryRun: false, consent: "todos", runner: () => true, log: quiet });
+  assert.throws(() => removeSkill(cwd, "cierre", { ...MAINT, log: quiet }), /parte del flujo/);
+  const r = removeSkill(cwd, "tdd", { ...MAINT, consent: false, runner: () => assert.fail("sin consentimiento"), log: quiet });
+  assert.equal(r.changed, false);
 });
 
 test("skills: lista agrupada con estado", () => {

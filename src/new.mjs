@@ -63,7 +63,7 @@ export function configFromFlags(catalog, flags, detected, identity) {
   };
 }
 
-/** Escribe el proyecto. `consent`: "todos" | "obligatorios" | "ninguno" para comandos de terceros. */
+/** Escribe el proyecto. `consent`: "todos" | "proyecto" (sin los globales) | "obligatorios" | "ninguno". */
 export function execute(config, catalog, { cwd, root, version, dryRun, consent = "ninguno", runner, log = console.log }) {
   const steps = externalSteps(catalog, config.skills, config.agents);
   const stamp = stampNow();
@@ -91,8 +91,10 @@ export function execute(config, catalog, { cwd, root, version, dryRun, consent =
   log(`  ${dryRun ? "·" : "+"} git: ${config.identity ? `identidad ${config.identity.label} (${config.identityReason})` : "sin fijar identidad (queda en pending.md)"}`);
 
   // 3. Comandos de terceros, solo con consentimiento
-  const allowed = steps.filter((s) => s.kind === "run" && (consent === "todos" || (consent === "obligatorios" && s.obligatoria)));
+  const allowed = steps.filter((s) => s.kind === "run" && (consent === "todos"
+    || (consent === "proyecto" && !s.global) || (consent === "obligatorios" && s.obligatoria)));
   const manual = steps.filter((s) => s.kind === "manual");
+  for (const s of steps.filter((x) => x.kind === "run" && x.aviso)) log(`  ! aviso de ${s.id}: ${s.aviso}`);
   if (dryRun) {
     for (const s of steps.filter((x) => x.kind === "run")) log(`  · ejecutaría: ${s.text}`);
   } else if (allowed.length) {

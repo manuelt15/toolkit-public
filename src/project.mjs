@@ -49,6 +49,9 @@ export function agentsMd(config, catalog, version) {
     L.push("- No generes diseños genéricos de shadcn. Toda UI sale de `DESIGN.md`; si falta un token,");
     L.push("  pregunta en vez de inventarlo.");
     L.push("- shadcn sobre Radix: `npx shadcn@latest init --base radix`.");
+    if (config.skills.some((s) => s.id === "diseno-propio")) {
+      L.push("- Antes de la primera pantalla y al revisar UI: skill `diseno-propio` (y su checklist).");
+    }
   }
   if (config.modules.length) {
     L.push("");
