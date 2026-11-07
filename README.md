@@ -6,10 +6,9 @@ y deja el proyecto con un flujo de sesión (arranque y cierre) que cualquier age
 
 **Estado:** primera versión (0.1). Puede cambiar entre versiones menores.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/manuelt15/toolkit-public/main/docs/img/landing-oscuro.png">
-  <img alt="Portada de tk: empieza proyectos con agentes, sin partir de cero" src="https://raw.githubusercontent.com/manuelt15/toolkit-public/main/docs/img/landing-claro.png">
-</picture>
+**Web:** [toolkit-landing-delta.vercel.app](https://toolkit-landing-delta.vercel.app)
+
+![Portada de tk: "Empieza proyectos con agentes. Sin partir de cero." junto a un terminal con el asistente de tk](https://raw.githubusercontent.com/manuelt15/toolkit-public/main/docs/img/portada.jpg)
 
 ## Instalar
 
