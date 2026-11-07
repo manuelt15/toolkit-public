@@ -11,6 +11,8 @@ import { configFromFlags, execute, folderIsSafe } from "../src/new.mjs";
 import { externalSteps } from "../src/external.mjs";
 import { startBrief, close, commitClose } from "../src/session.mjs";
 import { today } from "../src/new.mjs";
+import { listSkills, addSkill, doctor } from "../src/maintain.mjs";
+import { spawnSync } from "node:child_process";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const VERSION = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version;
@@ -20,6 +22,9 @@ const HELP = `Uso: tk [new|start|close] [opciones]
   tk start               brief de la sesión (lo lanza el hook al abrir el agente)
   tk close [--slug x]    lo mecánico del cierre: handover con huecos, índice, poda y checklist
   tk close --commit      commitea memory/ (sin push) si no quedan huecos sin rellenar
+  tk skills              catálogo agrupado con estado (proyecto, global, pendiente)
+  tk skills add <id>     añade una skill al proyecto (con --install todos ejecuta su comando)
+  tk doctor [--fix]      comprueba el proyecto contra el lock; --fix repara lo local
 
 tk new:
 
@@ -68,6 +73,7 @@ async function main(argv) {
       version: { type: "boolean", short: "v", default: false },
       slug: { type: "string" },
       commit: { type: "boolean", default: false },
+      fix: { type: "boolean", default: false },
     },
   });
   if (values.help) { console.log(HELP); return 0; }
@@ -82,6 +88,30 @@ async function main(argv) {
     if (values.commit) commitClose(process.cwd(), { today: today() });
     else close(process.cwd(), { slug: values.slug, today: today() });
     return 0;
+  }
+  if (cmd === "skills" || cmd === "doctor") {
+    const cwd = process.cwd();
+    const catalog = JSON.parse(readFileSync(join(ROOT, "catalogo", "catalog.json"), "utf8"));
+    const home = process.env.TOOLKIT_HOME ?? homedir();
+    if (cmd === "skills") {
+      const { globalSkills } = detect({ home, cwd });
+      if (positionals[1] === "add") {
+        const id = positionals[2];
+        if (!id) { console.error("Uso: tk skills add <id>"); return 2; }
+        addSkill(cwd, id, { catalog, root: ROOT, version: VERSION, globalSkills, consent: values.install === "todos" });
+        return 0;
+      }
+      console.log(listSkills(catalog, { cwd, globalSkills }));
+      return 0;
+    }
+    const hasTk = spawnSync("sh", ["-c", "command -v tk"], { stdio: "ignore" }).status === 0;
+    const r = doctor(cwd, { catalog, root: ROOT, version: VERSION, fix: values.fix, hasTk });
+    for (const l of r.ok) console.log(`  ✓ ${l}`);
+    for (const l of r.fixed) console.log(`  + ${l}`);
+    for (const l of r.warnings) console.log(`  ! ${l}`);
+    for (const l of r.errors) console.log(`  ✗ ${l}`);
+    console.log(r.errors.length ? `\n${r.errors.length} problema(s)${values.fix ? "" : ". Prueba tk doctor --fix"}` : "\nTodo en orden");
+    return r.errors.length ? 1 : 0;
   }
   if (cmd !== "new") { console.error(`Comando desconocido: ${cmd}\n\n${HELP}`); return 2; }
   if (!["todos", "obligatorios", "ninguno"].includes(values.install)) { console.error("--install: todos | obligatorios | ninguno"); return 2; }

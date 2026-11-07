@@ -386,6 +386,81 @@ test("el proyecto trae el hook de Claude y no pisa un settings.json existente", 
   assert.match(lines.join("\n"), /! \.claude\/settings\.json/);
 });
 
+// ── skills y doctor ─────────────────────────────────────────────────────────
+
+import { doctor, addSkill, listSkills } from "../src/maintain.mjs";
+const MAINT = { catalog, root: ROOT, version: "0.0.0-test" };
+
+test("doctor: verde en un proyecto recién montado", () => {
+  const cwd = tmp();
+  execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, log: quiet });
+  const r = doctor(cwd, MAINT);
+  assert.deepEqual(r.errors, []);
+});
+
+test("doctor: borrar una skill a mano lo hace fallar y --fix la repone igual que estaba", () => {
+  const cwd = tmp();
+  execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, log: quiet });
+  rmSync(join(cwd, ".agents/skills/cierre"), { recursive: true });
+  rmSync(join(cwd, ".claude/skills"));
+  const r = doctor(cwd, MAINT);
+  assert.ok(r.errors.some((e) => /Falta la skill cierre/.test(e)));
+  assert.ok(r.errors.some((e) => /Falta el enlace \.claude\/skills/.test(e)));
+  assert.ok(!existsSync(join(cwd, ".agents/skills/cierre")), "sin --fix no escribe");
+  const f = doctor(cwd, { ...MAINT, fix: true });
+  assert.deepEqual(f.errors, []);
+  assert.deepEqual(doctor(cwd, MAINT).errors, []);
+  assert.deepEqual(doctor(cwd, MAINT).warnings.filter((w) => /cierre/.test(w)), []);
+});
+
+test("doctor: una skill propia editada a mano se avisa y no se pisa", () => {
+  const cwd = tmp();
+  execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, log: quiet });
+  const p = join(cwd, ".agents/skills/cierre/SKILL.md");
+  writeFileSync(p, "mi versión\n");
+  const r = doctor(cwd, { ...MAINT, fix: true });
+  assert.ok(r.warnings.some((w) => /cierre cambió/.test(w)));
+  assert.equal(readFileSync(p, "utf8"), "mi versión\n");
+});
+
+test("doctor: sin lock falla y no escribe nada", () => {
+  const cwd = tmp();
+  const r = doctor(cwd, MAINT);
+  assert.match(r.errors[0], /toolkit\.lock\.json/);
+  assert.deepEqual(readdirSync(cwd), []);
+});
+
+test("skills add: externa sin --install queda pendiente en lock, pending y AGENTS.md", () => {
+  const cwd = tmp();
+  execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, log: quiet });
+  const runner = () => assert.fail("sin consentimiento no se ejecuta");
+  addSkill(cwd, "tdd", { ...MAINT, consent: false, runner, log: quiet });
+  const lock = JSON.parse(readFileSync(join(cwd, "toolkit.lock.json"), "utf8"));
+  assert.equal(lock.skills.find((s) => s.id === "tdd").estado, "pendiente");
+  assert.match(readFileSync(join(cwd, "memory/pending.md"), "utf8"), /Instalar la skill `tdd`/);
+  assert.match(readFileSync(join(cwd, "AGENTS.md"), "utf8"), /`tdd`: .*pendiente de instalar/);
+  assert.match(readFileSync(join(cwd, "AGENTS.md"), "utf8"), /## Este proyecto\nWeb de prueba/, "el bloque del proyecto no se toca");
+});
+
+test("skills add: con consentimiento se ejecuta y queda instalada; desconocida da error claro", () => {
+  const cwd = tmp();
+  execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, log: quiet });
+  const ran = [];
+  addSkill(cwd, "tdd", { ...MAINT, consent: true, runner: (a) => { ran.push(a.join(" ")); return true; }, log: quiet });
+  assert.match(ran[0], /mattpocock\/skills --skill tdd/);
+  assert.throws(() => addSkill(cwd, "no-existe", { ...MAINT, log: quiet }), /no está en el catálogo/);
+});
+
+test("skills: lista agrupada con estado", () => {
+  const cwd = tmp();
+  execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, log: quiet });
+  const out = listSkills(catalog, { cwd, globalSkills: { humanizer: { dirs: ["~/.agents/skills"] } } });
+  assert.match(out, /FLUJO \(PROPIAS\)\n\s+✓ cierre/);
+  assert.match(out, /● humanizer/);
+  assert.match(out, /… shadcn/);
+  assert.match(out, /○ stripe/);
+});
+
 // ── paquete ─────────────────────────────────────────────────────────────────
 
 test("npm pack solo lleva lo de la allowlist", () => {

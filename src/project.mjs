@@ -23,7 +23,7 @@ export function hashDir(dir) {
   return "sha256-" + h.digest("hex").slice(0, 16);
 }
 
-function agentsMd(config, catalog, version) {
+export function agentsMd(config, catalog, version) {
   const skill = (id) => catalog.skills[id];
   const inProject = config.skills.filter((s) => s.scope === "proyecto").map((s) => ({ ...skill(s.id), estado: s.estado }));
   const fromGlobal = config.skills.filter((s) => s.scope === "global").map((s) => skill(s.id));
