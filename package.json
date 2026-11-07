@@ -11,7 +11,7 @@
   },
   "type": "module",
   "bin": {
-    "toolkit": "bin/toolkit.mjs"
+    "tk": "bin/tk.mjs"
   },
   "engines": {
     "node": ">=22"

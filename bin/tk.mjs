@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CLI del toolkit. En esta versión solo enseña el plan (--dry-run): no escribe nada.
+// CLI del toolkit (comando `tk`). En esta versión solo enseña el plan (--dry-run): no escribe nada.
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
@@ -10,7 +10,7 @@ import { planForArchitecture } from "../src/plan.mjs";
 import { renderPlan } from "../src/render.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const HELP = `Uso: toolkit [new] --preset <arquitectura> --dry-run [opciones]
+const HELP = `Uso: tk [new] --preset <arquitectura> --dry-run [opciones]
 
   --preset <id>        saas, landing, agente-ia, api, herramienta
   --modules <a,b>      módulos opcionales a añadir

@@ -110,7 +110,7 @@ test("todas las arquitecturas producen un plan sin errores", () => {
 
 // ── CLI ─────────────────────────────────────────────────────────────────────
 
-const cli = (args, cwd, home) => spawnSync(process.execPath, [join(ROOT, "bin/toolkit.mjs"), ...args], {
+const cli = (args, cwd, home) => spawnSync(process.execPath, [join(ROOT, "bin/tk.mjs"), ...args], {
   cwd, encoding: "utf8", env: { ...process.env, TOOLKIT_HOME: home },
 });
 
