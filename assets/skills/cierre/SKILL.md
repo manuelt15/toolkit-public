@@ -5,6 +5,24 @@ description: Cierra la sesión — handover, índice, topic file, lecciones y co
 
 Cierra la sesión actual documentándola. Sigue los pasos en orden y **no te salgas de ellos**.
 
+## Atajo: proyectos con `toolkit.lock.json` y `tk` instalado
+
+`tk close` hace lo mecánico: comprueba si hay algo que cerrar, crea el handover con los
+commits y ficheros de la sesión, añade la línea al índice, archiva lo cerrado de
+`pending.md` y pasa la checklist de seguridad según los módulos. Deja huecos marcados con
+`<!-- tk:rellenar -->`. Tú pones el juicio:
+
+1. Ejecuta `tk close` (opcional `--slug <tema>`). Si dice "Nada que cerrar", termina.
+2. Rellena todos los huecos del handover y de `MEMORY.md` (Qué se hizo, Qué queda,
+   Decisiones, gancho del índice). Concreto: ficheros, decisiones y por qué.
+3. En `pending.md`, marca con ✅ o ⛔ lo cerrado y añade lo nuevo. Lección en
+   `lessons.md` solo si hubo una corrección real. Actualiza el topic file si toca.
+4. Atiende los `!` de la checklist o apúntalos en `pending.md`.
+5. Ejecuta `tk close --commit`: se niega si queda algún hueco, y commitea solo `memory/`,
+   sin push.
+
+Sin `tk`, sigue los pasos de abajo a mano.
+
 ## Paso 0 — ¿Hay algo que cerrar?
 
 Mira el trabajo real de la sesión: `git status`, `git diff`, `git log` de hoy, y lo hablado en la conversación.
@@ -81,9 +99,7 @@ Y el mismo check en `.husky/pre-commit` y `pre-push` si el repo usa husky.
    rellenar.
 5. **Podar `pending.md`.** Lo que la sesión cerró se marca con ✅ (hecho) o ⛔ (decidido no
    hacerlo) en el título de su sección `## `, y se archiva con el script:
-   ```
-   python3 ~/.toolkit/core/podar-pending.py <memoria>
-   ```
+   `tk close` lo archiva solo. Sin `tk`: mueve a mano esas secciones a `pending-archive.md`.
    Mueve enteras a `pending-archive.md` las secciones con ✅ o ⛔ en el título (respeta
    «⏳ Abierto» y «⛔ Decidido»). Por cada ⛔ que mueva, añade **una línea** a
    «## ⛔ Decidido: no volver a proponer» con la decisión y su fecha. Si lo cerrado era una

@@ -9,11 +9,19 @@ import { detect } from "../src/detect.mjs";
 import { detectIdentities, pickIdentity } from "../src/identity.mjs";
 import { configFromFlags, execute, folderIsSafe } from "../src/new.mjs";
 import { externalSteps } from "../src/external.mjs";
+import { startBrief, close, commitClose } from "../src/session.mjs";
+import { today } from "../src/new.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const VERSION = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version;
 
-const HELP = `Uso: tk [new] [opciones]
+const HELP = `Uso: tk [new|start|close] [opciones]
+
+  tk start               brief de la sesión (lo lanza el hook al abrir el agente)
+  tk close [--slug x]    lo mecánico del cierre: handover con huecos, índice, poda y checklist
+  tk close --commit      commitea memory/ (sin push) si no quedan huecos sin rellenar
+
+tk new:
 
 Sin opciones y en una terminal: wizard interactivo.
 Sin teclado (CI, VM, la skill nuevo-proyecto): --preset y --yes o --dry-run.
@@ -58,11 +66,23 @@ async function main(argv) {
       yes: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
       version: { type: "boolean", short: "v", default: false },
+      slug: { type: "string" },
+      commit: { type: "boolean", default: false },
     },
   });
   if (values.help) { console.log(HELP); return 0; }
   if (values.version) { console.log(VERSION); return 0; }
   const cmd = positionals[0] ?? "new";
+  if (cmd === "start") {
+    const brief = startBrief(process.cwd());
+    if (brief) console.log(brief);
+    return 0; // nunca falla: lo ejecuta un hook
+  }
+  if (cmd === "close") {
+    if (values.commit) commitClose(process.cwd(), { today: today() });
+    else close(process.cwd(), { slug: values.slug, today: today() });
+    return 0;
+  }
   if (cmd !== "new") { console.error(`Comando desconocido: ${cmd}\n\n${HELP}`); return 2; }
   if (!["todos", "obligatorios", "ninguno"].includes(values.install)) { console.error("--install: todos | obligatorios | ninguno"); return 2; }
 

@@ -30,9 +30,10 @@ function agentsMd(config, catalog, version) {
   const L = [];
   L.push(`<!-- toolkit:public v${version} -->`);
   L.push("## Flujo de sesión (obligatorio)");
-  L.push("- Al empezar: lee `memory/MEMORY.md` y `memory/pending.md` antes de proponer trabajo.");
-  L.push("- Al terminar una sesión con cambios: usa la skill `cierre` (handover, pendientes, lecciones");
-  L.push("  y commit sin push). No termines la sesión sin hacerlo.");
+  L.push("- Al empezar: ejecuta `tk start` y lee lo que imprime (si no tienes `tk`, lee");
+  L.push("  `memory/MEMORY.md`). Lee `memory/pending.md` antes de proponer trabajo.");
+  L.push("- Al terminar una sesión con cambios: skill `cierre`. Con `tk`: `tk close`, rellena los");
+  L.push("  huecos que deja y `tk close --commit` (commit de memory/ sin push). No termines sin hacerlo.");
   L.push("- Una memoria es una foto del momento: comprueba ficheros y funciones contra el código antes");
   L.push("  de darlos por ciertos.");
   L.push("");
@@ -126,6 +127,10 @@ export function buildOps(config, catalog, { root, version }) {
   for (const s of own) ops.push({ type: "copyDir", path: `.agents/skills/${s.id}`, from: join(root, "assets/skills", s.id) });
   // Claude lee .claude/skills: enlace relativo dentro del repo, viaja con él
   ops.push({ type: "symlink", path: ".claude/skills", target: "../.agents/skills" });
+  // Claude Code: el brief llega solo al abrir sesión. Si ya hay settings, no se toca.
+  ops.push({ type: "file", ifMissing: true, path: ".claude/settings.json", content: JSON.stringify({
+    hooks: { SessionStart: [{ hooks: [{ type: "command", command: "command -v tk >/dev/null 2>&1 && tk start || true" }] }] },
+  }, null, 2) + "\n" });
   // Hermes lee .hermes/skills (una entrada por skill, como hace `npx skills`)
   if (config.agents.includes("hermes-agent")) {
     for (const s of own) ops.push({ type: "symlink", path: `.hermes/skills/${s.id}`, target: `../../.agents/skills/${s.id}` });
@@ -194,6 +199,7 @@ export function applyOps(cwd, ops, { dryRun = false, stamp }) {
     }
     const content = op.type === "copyFile" ? readFileSync(op.from) : Buffer.from(op.content);
     if (exists && readFileSync(abs).equals(content)) { say("=", op.path); continue; }
+    if (exists && op.ifMissing) { say("!", op.path, "ya existe: no se toca; añade el hook a mano si lo quieres"); continue; }
     if (exists) say("↻", op.path, dryRun ? "se guardaría copia" : `copia en ${backup(abs, stamp)}`);
     else say("+", op.path);
     if (!dryRun) { mkdirSync(dirname(abs), { recursive: true }); writeFileSync(abs, content); }

@@ -265,6 +265,127 @@ test("identidad: una regla gitdir que coincide con la carpeta decide", () => {
   assert.equal(r.decided.email, "p@example.org");
 });
 
+// ── sesión: start y close ───────────────────────────────────────────────────
+
+import { startBrief, close, commitClose, prunePending, HUECO } from "../src/session.mjs";
+
+function projectWithCommit() {
+  const cwd = tmp();
+  execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, log: quiet });
+  spawnSync("git", ["add", "-A"], { cwd });
+  spawnSync("git", ["commit", "-qm", "inicio"], { cwd });
+  return cwd;
+}
+const gitOut = (cwd, args) => spawnSync("git", args, { cwd, encoding: "utf8" }).stdout.trim();
+
+test("start: fuera de un proyecto del toolkit no dice nada", () => {
+  assert.equal(startBrief(tmp()), null);
+});
+
+test("start: brief con proyecto, pendientes y git", () => {
+  const cwd = projectWithCommit();
+  const b = startBrief(cwd);
+  assert.match(b, /Proyecto: Web de prueba/);
+  assert.match(b, /Pendiente \(3 de \d+\):\n  1\. Completar `DESIGN\.md`/);
+  assert.match(b, /Git: rama main; 0 cambio\(s\) sin commitear; último commit: \w+ inicio/);
+  assert.match(b, /tk close/);
+});
+
+test("close: sin cambios no escribe nada", () => {
+  const cwd = projectWithCommit();
+  spawnSync("git", ["commit", "-q", "--allow-empty", "-m", "x", "--", "memory/"], { cwd });
+  // primer cierre real para tener base
+  writeFileSync(join(cwd, "app.js"), "1\n");
+  close(cwd, { today: "2026-11-07", slug: "base", log: quiet });
+  const ho = join(cwd, "memory/handovers-archive/HANDOVER-2026-11-07-base.md");
+  writeFileSync(ho, readFileSync(ho, "utf8").replaceAll(HUECO, "hecho"));
+  writeFileSync(join(cwd, "memory/MEMORY.md"), readFileSync(join(cwd, "memory/MEMORY.md"), "utf8").replaceAll(HUECO, "gancho"));
+  spawnSync("git", ["add", "app.js"], { cwd }); spawnSync("git", ["commit", "-qm", "app"], { cwd });
+  commitClose(cwd, { today: "2026-11-07", log: quiet });
+  const lines = [];
+  const r = close(cwd, { today: "2026-11-08", log: (l) => lines.push(l) });
+  assert.equal(r.nothing, true);
+  assert.equal(handovers(cwd).length, 1);
+});
+const handovers = (cwd) => readdirSync(join(cwd, "memory/handovers-archive")).filter((f) => f.startsWith("HANDOVER-"));
+
+test("close: crea handover con huecos y --commit se niega hasta rellenarlos; solo commitea memory/", () => {
+  const cwd = projectWithCommit();
+  writeFileSync(join(cwd, "app.js"), "console.log(1)\n");
+  spawnSync("git", ["add", "app.js"], { cwd }); spawnSync("git", ["commit", "-qm", "feat: app"], { cwd });
+  writeFileSync(join(cwd, "sin-commitear.js"), "x\n");
+  close(cwd, { today: "2026-11-07", slug: "Primera sesión", log: quiet });
+  const file = join(cwd, "memory/handovers-archive/HANDOVER-2026-11-07-primera-sesion.md");
+  const body = readFileSync(file, "utf8");
+  assert.match(body, /feat: app/);
+  assert.match(body, /Sin commitear: 1 fichero/);
+  assert.ok(body.includes(HUECO));
+  assert.match(readFileSync(join(cwd, "memory/MEMORY.md"), "utf8"), /HANDOVER-2026-11-07-primera-sesion\.md/);
+
+  assert.throws(() => commitClose(cwd, { today: "2026-11-07", log: quiet }), /Quedan huecos/);
+  writeFileSync(file, body.replaceAll(HUECO, "relleno"));
+  assert.throws(() => commitClose(cwd, { today: "2026-11-07", log: quiet }), /MEMORY\.md/);
+  const idx = join(cwd, "memory/MEMORY.md");
+  writeFileSync(idx, readFileSync(idx, "utf8").replaceAll(HUECO, "primera sesión"));
+  commitClose(cwd, { today: "2026-11-07", log: quiet });
+  assert.equal(gitOut(cwd, ["log", "-1", "--format=%s"]), "docs(memory): update - primera sesion");
+  assert.deepEqual(gitOut(cwd, ["show", "--name-only", "--format=", "HEAD"]).split("\n").every((f) => f.startsWith("memory/")), true);
+  assert.match(gitOut(cwd, ["status", "--porcelain"]), /\?\? sin-commitear\.js/);
+  assert.equal(gitOut(cwd, ["remote"]), "", "no hay remoto: no puede haber push");
+});
+
+test("dos cierres el mismo día: el commit lleva el título del handover que entra", () => {
+  const cwd = projectWithCommit();
+  const cerrar = (slug, fichero) => {
+    writeFileSync(join(cwd, fichero), slug + "\n");
+    spawnSync("git", ["add", fichero], { cwd }); spawnSync("git", ["commit", "-qm", fichero], { cwd });
+    close(cwd, { today: "2026-11-07", slug, log: quiet });
+    for (const f of [join(cwd, `memory/handovers-archive/HANDOVER-2026-11-07-${slug}.md`), join(cwd, "memory/MEMORY.md")]) {
+      writeFileSync(f, readFileSync(f, "utf8").replaceAll(HUECO, "ok"));
+    }
+    commitClose(cwd, { today: "2026-11-07", log: quiet });
+    return gitOut(cwd, ["log", "-1", "--format=%s"]);
+  };
+  assert.equal(cerrar("zeta", "a.txt"), "docs(memory): update - zeta");
+  assert.equal(cerrar("alfa", "b.txt"), "docs(memory): update - alfa");
+  assert.match(startBrief(cwd), /Último handover: memory\/handovers-archive\/HANDOVER-2026-11-07-alfa\.md/);
+});
+
+test("poda: las secciones con ✅ o ⛔ van a pending-archive.md", () => {
+  const dir = tmp();
+  writeFileSync(join(dir, "pending.md"), "# Pendientes\n\n## ⏳ Abierto\n- a\n\n## ✅ Hecho X\ndetalle\n\n## Otra abierta\n\n## ⛔ Decidido: no volver a proponer\n");
+  const moved = prunePending(dir, "2026-11-07");
+  assert.deepEqual(moved, ["## ✅ Hecho X"]);
+  assert.doesNotMatch(readFileSync(join(dir, "pending.md"), "utf8"), /Hecho X/);
+  assert.match(readFileSync(join(dir, "pending-archive.md"), "utf8"), /## ✅ Hecho X\ndetalle/);
+});
+
+test("checklist: avisa de un .env en git y de una dependencia sin su módulo", () => {
+  const cwd = projectWithCommit();
+  writeFileSync(join(cwd, ".env.local"), "X=1\n");
+  spawnSync("git", ["add", "-f", ".env.local"], { cwd });
+  writeFileSync(join(cwd, "package.json"), JSON.stringify({ dependencies: { stripe: "1.0.0" } }));
+  const lines = [];
+  close(cwd, { today: "2026-11-07", log: (l) => lines.push(l) });
+  const out = lines.join("\n");
+  assert.match(out, /! Ficheros \.env en git: \.env\.local/);
+  assert.match(out, /! Hay "stripe" en package\.json pero el módulo pagos no está activo/);
+});
+
+test("el proyecto trae el hook de Claude y no pisa un settings.json existente", () => {
+  const cwd = tmp();
+  execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, log: quiet });
+  const hook = JSON.parse(readFileSync(join(cwd, ".claude/settings.json"), "utf8"));
+  assert.match(hook.hooks.SessionStart[0].hooks[0].command, /tk start/);
+  const cwd2 = tmp();
+  mkdirSync(join(cwd2, ".claude"));
+  writeFileSync(join(cwd2, ".claude/settings.json"), "{\"mio\":true}\n");
+  const lines = [];
+  execute(newConfig(), catalog, { cwd: cwd2, ...ROOTS, dryRun: false, log: (l) => lines.push(l) });
+  assert.equal(readFileSync(join(cwd2, ".claude/settings.json"), "utf8"), "{\"mio\":true}\n");
+  assert.match(lines.join("\n"), /! \.claude\/settings\.json/);
+});
+
 // ── paquete ─────────────────────────────────────────────────────────────────
 
 test("npm pack solo lleva lo de la allowlist", () => {
