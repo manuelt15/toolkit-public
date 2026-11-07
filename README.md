@@ -4,7 +4,12 @@ Un comando para empezar un proyecto con agentes de IA (Claude Code, Codex, Herme
 pregunta qué vas a construir, propone módulos y skills explicando para qué sirve cada una,
 y deja el proyecto con un flujo de sesión (arranque y cierre) que cualquier agente sigue.
 
-**Estado:** en desarrollo. Todavía no está publicado en npm.
+**Estado:** primera versión (0.1). Puede cambiar entre versiones menores.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/manuelt15/toolkit-public/main/docs/img/landing-oscuro.png">
+  <img alt="Portada de tk: empieza proyectos con agentes, sin partir de cero" src="https://raw.githubusercontent.com/manuelt15/toolkit-public/main/docs/img/landing-claro.png">
+</picture>
 
 ## Instalar
 

@@ -1,7 +1,6 @@
 {
   "name": "@manuelt15/toolkit",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "Flujo para empezar proyectos con agentes de IA: módulos, skills y sesiones con cierre.",
   "license": "MIT",
   "author": "manuelt15 (https://github.com/manuelt15)",
@@ -12,6 +11,9 @@
   "type": "module",
   "bin": {
     "tk": "bin/tk.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=22"
@@ -33,7 +35,7 @@
     "build": "node scripts/build-catalog.mjs",
     "test": "node --test test/*.test.mjs",
     "audit": "scripts/audit.sh",
-    "prepublishOnly": "echo \"Publicación bloqueada hasta F6 (audit y ok del mantenedor)\" && exit 1"
+    "prepublishOnly": "npm test && scripts/audit.sh --pack"
   },
   "devDependencies": {
     "yaml": "2.9.1"

@@ -18,7 +18,8 @@ PATTERNS="$(grep -vE '^\s*(#|$)' "$DENY")"
 if [ "${1:-}" = "--pack" ]; then
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
-  npm pack --silent --pack-destination "$tmp" >/dev/null || { echo "audit: npm pack falló" >&2; exit 1; }
+  # --dry-run=false: dentro de `npm publish --dry-run` npm hereda dry_run y no escribiría el tgz
+  npm pack --silent --dry-run=false --pack-destination "$tmp" >/dev/null || { echo "audit: npm pack falló" >&2; exit 1; }
   mkdir "$tmp/x" && tar -xzf "$tmp"/*.tgz -C "$tmp/x"
   set -- "$tmp/x/package"
   # Estilo del autor: sin raya larga en nada de lo que se publica
