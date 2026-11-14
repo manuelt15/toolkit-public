@@ -10,6 +10,22 @@ y deja el proyecto con un flujo de sesión (arranque y cierre) que cualquier age
 
 ![Portada de tk: "Empieza proyectos con agentes. Sin partir de cero." junto a un terminal con el asistente de tk](https://raw.githubusercontent.com/manuelt15/toolkit-public/main/docs/img/portada.jpg)
 
+## Por qué existe
+
+tk recoge cómo empiezo y cierro mis proyectos con agentes. Lo publico tal cual, por si le
+sirve a alguien más.
+
+- **Las skills que más uso, en su origen.** Las de otras personas que me sirven al empezar
+  un proyecto, junto a cuatro propias. tk no las copia: enseña el comando y las instala desde
+  su origen, con su licencia.
+- **Flujos con IA que no sean genéricos ni peligrosos.** `diseno-propio` hace que la
+  interfaz salga de tu `DESIGN.md` y no de valores por defecto. `seguridad-rgpd` aplica RGPD
+  y seguridad mínima, con una validación antes de cada lanzamiento. `tk close` comprueba en
+  cada cierre que no haya un `.env` en git.
+- **Cada sesión, legible para el siguiente agente.** `tk start` enseña lo pendiente y el
+  último handover; `tk close` deja lo hecho, lo pendiente y lo decidido. Cualquier agente,
+  mañana u otro distinto, sigue desde ahí.
+
 ## Instalar
 
 Requisitos: Node 22 o superior, macOS o Linux (en Windows, WSL).
