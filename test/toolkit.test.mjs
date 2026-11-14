@@ -597,7 +597,10 @@ test("perfil: bloque propio en AGENTS.md, nombre en el lock y ningún email en e
 test("npm pack solo lleva lo de la allowlist", () => {
   const r = spawnSync("npm", ["pack", "--dry-run", "--json"], { cwd: ROOT, encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
-  const files = JSON.parse(r.stdout)[0].files.map((f) => f.path);
+  // npm 12 devuelve un objeto indexado por nombre de paquete; hasta npm 11, un array
+  const salida = JSON.parse(r.stdout);
+  const paquete = Array.isArray(salida) ? salida[0] : Object.values(salida)[0];
+  const files = paquete.files.map((f) => f.path);
   for (const f of files) {
     assert.match(f, /^(bin|src|catalogo|modulos|arquitecturas|plantillas|assets)\/|^(package\.json|README\.md|LICENSE)$/, `no debería ir en el paquete: ${f}`);
   }
