@@ -1,6 +1,6 @@
 {
   "name": "@manuelt15/toolkit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Flujo para empezar proyectos con agentes de IA: módulos, skills y sesiones con cierre.",
   "license": "MIT",
   "author": "manuelt15 (https://github.com/manuelt15)",
