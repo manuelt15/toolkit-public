@@ -159,7 +159,7 @@ export function buildOps(config, catalog, { root, version }) {
       const c = catalog.skills[s.id];
       const base = { id: s.id, scope: s.scope, origen: c.origen, nivel: c.nivel };
       if (c.origen === "propia") return { ...base, version, hash: s.scope === "proyecto" ? hashDir(join(root, "assets/skills", s.id)) : null };
-      return { ...base, repo: c.repo, estado: s.estado };
+      return { ...base, repo: c.repo, estado: s.estado, revision: s.revision ?? null, instalado: s.instalado ?? null };
     }),
   };
   ops.push({ type: "file", path: "toolkit.lock.json", content: JSON.stringify(lock, null, 2) + "\n" });

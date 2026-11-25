@@ -4,7 +4,7 @@ import { existsSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { planSkills, resolveModules } from "./plan.mjs";
 import { buildOps, applyOps } from "./project.mjs";
-import { externalSteps, runSteps } from "./external.mjs";
+import { externalSteps, runSteps, revisionOf } from "./external.mjs";
 
 export const today = () => new Date().toISOString().slice(0, 10);
 const stampNow = () => new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
@@ -64,7 +64,7 @@ export function configFromFlags(catalog, flags, detected, identity) {
 }
 
 /** Escribe el proyecto. `consent`: "todos" | "proyecto" (sin los globales) | "obligatorios" | "ninguno". */
-export function execute(config, catalog, { cwd, root, version, dryRun, consent = "ninguno", runner, log = console.log }) {
+export function execute(config, catalog, { cwd, root, version, dryRun, consent = "ninguno", runner, lsRemote, now = () => new Date().toISOString(), log = console.log }) {
   const steps = externalSteps(catalog, config.skills, config.agents);
   const stamp = stampNow();
 
@@ -101,7 +101,13 @@ export function execute(config, catalog, { cwd, root, version, dryRun, consent =
     const results = runSteps(allowed, { cwd, runner });
     for (const r of results) {
       const s = config.skills.find((x) => x.id === r.id);
-      if (r.ok) s.estado = "instalada";
+      if (r.ok) {
+        s.estado = "instalada";
+        // Solo se anota qué revisión se instaló: no se fija nada en el catálogo
+        s.revision = revisionOf(catalog.skills[r.id].repo, { lsRemote });
+        s.instalado = now();
+        if (!s.revision) log(`  ! ${r.id}: sin revisión del repo (queda revision: null en el lock)`);
+      }
       log(`  ${r.ok ? "+" : "!"} ${r.text}${r.ok ? "" : "  (falló: queda en pending.md)"}`);
     }
     // Lock y pending reflejan lo que de verdad se instaló

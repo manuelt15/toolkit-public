@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, cpSync, symlinkSync, lstatSync, readlinkSync, rmSync, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { agentsMd, hashDir } from "./project.mjs";
-import { externalSteps, runSteps, knownAgents } from "./external.mjs";
+import { externalSteps, runSteps, knownAgents, revisionOf } from "./external.mjs";
 
 const lockPath = (cwd) => join(cwd, "toolkit.lock.json");
 // El lock viaja con el repo: puede venir de otra persona. Un id solo vale si está en el
@@ -74,7 +74,7 @@ export function listSkills(catalog, { cwd, globalSkills }) {
   return out.join("\n");
 }
 
-export function addSkill(cwd, id, { catalog, root, version, globalSkills = {}, consent = false, runner, log = console.log }) {
+export function addSkill(cwd, id, { catalog, root, version, globalSkills = {}, consent = false, runner, lsRemote, now = () => new Date().toISOString(), log = console.log }) {
   const lock = readLock(cwd);
   const s = trusted(catalog, id) ? catalog.skills[id] : null;
   if (!s) throw new Error(`"${id}" no está en el catálogo. Mira \`tk skills\` o busca con la skill find-skills.`);
@@ -104,7 +104,9 @@ export function addSkill(cwd, id, { catalog, root, version, globalSkills = {}, c
     let ok = false;
     if (run.length && consent) ok = runSteps(run, { cwd, runner }).every((r) => r.ok);
     else for (const r of run) log(`· comando (no ejecutado, usa --install): ${r.text}`);
-    entry = { id, scope: s.scope, origen: "externa", nivel: s.nivel, repo: s.repo, estado: ok ? "instalada" : "pendiente" };
+    const revision = ok ? revisionOf(s.repo, { lsRemote }) : null;
+    if (ok && !revision) log(`! ${id}: sin revisión del repo (queda revision: null en el lock)`);
+    entry = { id, scope: s.scope, origen: "externa", nivel: s.nivel, repo: s.repo, estado: ok ? "instalada" : "pendiente", revision, instalado: ok ? now() : null };
     if (!ok && run.length) appendPending(cwd, `- Instalar la skill \`${id}\`: \`${run[0].text}\``);
     log(ok ? `+ ${id} instalada` : `… ${id} queda pendiente (apuntada en memory/pending.md)`);
   }
@@ -183,6 +185,10 @@ export function doctor(cwd, { catalog, root, version, fix = false, hasTk = true 
   const lockSkills = Array.isArray(lock.skills) ? lock.skills : [];
   for (const s of lockSkills.filter((x) => !trusted(catalog, x?.id))) {
     res.errors.push(`El lock nombra una skill que no está en el catálogo o con un id no válido: ${JSON.stringify(String(s?.id)).slice(0, 60)}. No se toca.`);
+  }
+  // Instaladas sin revisión: locks de antes de anotarla. Se avisa, no se puede verificar.
+  for (const s of lockSkills.filter((x) => trusted(catalog, x?.id) && catalog.skills[x.id].origen === "externa" && x.estado === "instalada" && !x.revision)) {
+    res.warnings.push(`Skill ${s.id}: el lock no anota la revisión que se instaló (lock antiguo); reinstálala con tk skills add para dejarla`);
   }
   for (const s of lockSkills.filter((x) => trusted(catalog, x?.id))) {
     if (s.scope !== "proyecto") continue;
