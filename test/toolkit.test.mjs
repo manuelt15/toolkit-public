@@ -176,6 +176,7 @@ test("el plan no muestra rutas absolutas del HOME", () => {
 
 const ROOTS = { root: ROOT, version: "0.0.0-test" };
 const quiet = () => {};
+const sinRed = () => null; // los tests no consultan la red al instalar
 function newConfig(extra = {}) {
   const det = { agents: ["claude-code", "codex", "hermes-agent"], globalSkills: {} };
   return configFromFlags(catalog, { preset: "landing", modules: [], options: {}, skills: [], alsoInProject: [], description: "Web de prueba", design: { kind: "reference" }, ...extra }, det, { chosen: { label: "global", name: "Test", email: "test@example.org" }, reason: "única identidad detectada" });
@@ -228,7 +229,7 @@ test("consentimiento: solo obligatorios ejecuta solo esos y el lock dice qué se
   const ran = [];
   const runner = (argv) => { ran.push(argv.join(" ")); return true; };
   const cfg = newConfig({ preset: "saas", options: { datos: "neon" } });
-  execute(cfg, catalog, { cwd, ...ROOTS, dryRun: false, consent: "obligatorios", runner, log: quiet });
+  execute(cfg, catalog, { cwd, ...ROOTS, dryRun: false, consent: "obligatorios", runner, lsRemote: sinRed, log: quiet });
   assert.equal(ran.length, 1);
   assert.match(ran[0], /better-auth-security-best-practices/);
   const lock = JSON.parse(readFileSync(join(cwd, "toolkit.lock.json"), "utf8"));
@@ -242,7 +243,7 @@ test("consentimiento: solo obligatorios ejecuta solo esos y el lock dice qué se
 test("consentimiento: solo proyecto deja fuera los globales (-g)", () => {
   const cwd = tmp();
   const ran = [];
-  execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, consent: "proyecto", runner: (a) => { ran.push(a.join(" ")); return true; }, log: quiet });
+  execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, consent: "proyecto", runner: (a) => { ran.push(a.join(" ")); return true; }, lsRemote: sinRed, log: quiet });
   assert.ok(ran.length > 0);
   assert.ok(ran.every((c) => !c.includes(" -g ")), ran.join("\n"));
   const lock = JSON.parse(readFileSync(join(cwd, "toolkit.lock.json"), "utf8"));
@@ -505,14 +506,14 @@ test("skills add: con consentimiento se ejecuta y queda instalada; desconocida d
   const cwd = tmp();
   execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, log: quiet });
   const ran = [];
-  addSkill(cwd, "tdd", { ...MAINT, consent: true, runner: (a) => { ran.push(a.join(" ")); return true; }, log: quiet });
+  addSkill(cwd, "tdd", { ...MAINT, consent: true, runner: (a) => { ran.push(a.join(" ")); return true; }, lsRemote: sinRed, log: quiet });
   assert.match(ran[0], /mattpocock\/skills --skill tdd/);
   assert.throws(() => addSkill(cwd, "no-existe", { ...MAINT, log: quiet }), /no está en el catálogo/);
 });
 
 test("skills remove: externa instalada se quita con su comando y sale del lock y de AGENTS.md", () => {
   const cwd = tmp();
-  execute(newConfig({ modules: ["testing"], skills: ["tdd"] }), catalog, { cwd, ...ROOTS, dryRun: false, consent: "todos", runner: () => true, log: quiet });
+  execute(newConfig({ modules: ["testing"], skills: ["tdd"] }), catalog, { cwd, ...ROOTS, dryRun: false, consent: "todos", runner: () => true, lsRemote: sinRed, log: quiet });
   const ran = [];
   removeSkill(cwd, "tdd", { ...MAINT, consent: true, runner: (a) => { ran.push(a.join(" ")); return true; }, log: quiet });
   assert.deepEqual(ran, ["npx skills remove tdd -y"]);
@@ -523,7 +524,7 @@ test("skills remove: externa instalada se quita con su comando y sale del lock y
 
 test("skills remove: las del flujo no se quitan y sin --install no ejecuta nada", () => {
   const cwd = tmp();
-  execute(newConfig({ modules: ["testing"], skills: ["tdd"] }), catalog, { cwd, ...ROOTS, dryRun: false, consent: "todos", runner: () => true, log: quiet });
+  execute(newConfig({ modules: ["testing"], skills: ["tdd"] }), catalog, { cwd, ...ROOTS, dryRun: false, consent: "todos", runner: () => true, lsRemote: sinRed, log: quiet });
   assert.throws(() => removeSkill(cwd, "cierre", { ...MAINT, log: quiet }), /parte del flujo/);
   const r = removeSkill(cwd, "tdd", { ...MAINT, consent: false, runner: () => assert.fail("sin consentimiento"), log: quiet });
   assert.equal(r.changed, false);

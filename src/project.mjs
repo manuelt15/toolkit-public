@@ -3,9 +3,9 @@
 import { createHash } from "node:crypto";
 import {
   existsSync, readFileSync, writeFileSync, mkdirSync, cpSync, readdirSync, statSync,
-  renameSync, symlinkSync, readlinkSync, lstatSync, appendFileSync,
+  renameSync, symlinkSync, readlinkSync, lstatSync, appendFileSync, realpathSync,
 } from "node:fs";
-import { join, dirname, basename, extname, relative } from "node:path";
+import { join, dirname, basename, extname, relative, sep } from "node:path";
 
 export const GITIGNORE = [".env*", "!.env.example", "node_modules/", ".DS_Store", "*.bak-toolkit-*"];
 
@@ -159,7 +159,7 @@ export function buildOps(config, catalog, { root, version }) {
       const c = catalog.skills[s.id];
       const base = { id: s.id, scope: s.scope, origen: c.origen, nivel: c.nivel };
       if (c.origen === "propia") return { ...base, version, hash: s.scope === "proyecto" ? hashDir(join(root, "assets/skills", s.id)) : null };
-      return { ...base, repo: c.repo, estado: s.estado };
+      return { ...base, repo: c.repo, estado: s.estado, revision: s.revision ?? null, instalado: s.instalado ?? null };
     }),
   };
   ops.push({ type: "file", path: "toolkit.lock.json", content: JSON.stringify(lock, null, 2) + "\n" });
@@ -172,12 +172,44 @@ function backup(abs, stamp) {
   return basename(to);
 }
 
+/** ¿La ruta real cae dentro de la raíz real? Compara cadenas, no toca el disco. */
+export function isInside(root, real) {
+  return real === root || real.startsWith(root.endsWith(sep) ? root : root + sep);
+}
+
+/**
+ * Devuelve la ruta a escribir, después de resolver los enlaces que la atraviesan.
+ * Si el destino no existe se resuelve el ancestro existente más cercano y se recompone.
+ * Si la ruta real se sale de cwd, aborta: no hay excepciones ni forma de saltárselo.
+ */
+export function resolveInside(cwd, rel, { realpath = realpathSync } = {}) {
+  const root = realpath(cwd);
+  const abs = join(cwd, rel);
+  let base = abs, tail = [];
+  for (;;) {
+    try {
+      const real = join(realpath(base), ...tail);
+      if (!isInside(root, real)) throw new Error(`${rel} sale del proyecto: su ruta real es ${real}, fuera de ${root}. No se escribe ahí.`);
+      return abs;
+    } catch (e) {
+      // Solo se sube al padre si lo que falla es la existencia; un bloqueo se propaga tal cual
+      if (e.code !== "ENOENT" && e.code !== "ENOTDIR") throw e;
+      const parent = dirname(base);
+      if (parent === base) throw new Error(`${rel} no se puede resolver dentro de ${root}. No se escribe ahí.`);
+      tail = [basename(base), ...tail];
+      base = parent;
+    }
+  }
+}
+
 /** Aplica las operaciones en cwd. Devuelve líneas de informe. Con dryRun no escribe nada. */
 export function applyOps(cwd, ops, { dryRun = false, stamp }) {
   const report = [];
   const say = (sym, path, note = "") => report.push(`  ${sym} ${path}${note ? `  (${note})` : ""}`);
-  for (const op of ops) {
-    const abs = join(cwd, op.path);
+  // Se resuelven todas las rutas antes de escribir nada: o el proyecto entero o nada
+  const destinos = ops.map((op) => resolveInside(cwd, op.path));
+  for (const [i, op] of ops.entries()) {
+    const abs = destinos[i];
     const exists = existsSync(abs) || (() => { try { lstatSync(abs); return true; } catch { return false; } })();
     if (op.type === "lines") {
       const current = existsSync(abs) ? readFileSync(abs, "utf8").split("\n") : [];

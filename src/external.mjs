@@ -52,3 +52,25 @@ function defaultRunner(argv, cwd) {
   const r = spawnSync(argv[0], argv.slice(1), { cwd, stdio: "inherit" });
   return r.status === 0;
 }
+
+// El catálogo guarda owner/repo (lo que entiende npx); git necesita la URL
+const repoUrl = (repo) => (/^[\w.-]+\/[\w.-]+$/.test(repo) ? `https://github.com/${repo}.git` : repo);
+
+/**
+ * Revisión que hay ahora mismo en la rama por defecto del repo (git ls-remote HEAD).
+ * Solo deja constancia de lo instalado: no fija nada. Sin red o si falla devuelve null
+ * y la instalación sigue adelante. `lsRemote` se inyecta en los tests para no salir a la red.
+ */
+export function revisionOf(repo, { lsRemote = lsRemoteHead } = {}) {
+  try {
+    const sha = String(lsRemote(repoUrl(repo)) ?? "").trim().split(/\s+/)[0];
+    return /^[0-9a-f]{40}$/.test(sha) ? sha : null;
+  } catch {
+    return null;
+  }
+}
+
+function lsRemoteHead(url) {
+  const r = spawnSync("git", ["ls-remote", url, "HEAD"], { encoding: "utf8", timeout: 20000 });
+  return r.status === 0 ? r.stdout : null;
+}

@@ -1,5 +1,6 @@
-# Tests en cada push y PR. En main y en cada tag v*, además, el audit: Gitleaks y la denylist
-# sobre el paquete real (npm pack) y sobre todo el historial. Publicar no lo hace la CI.
+# Tests en cada push y PR. El audit va solo en push a main y en tags v*: nunca en
+# pull_request, donde los scripts del PR verían el secreto de la denylist. Publicar no lo
+# hace la CI.
 name: ci
 on:
   push:
@@ -26,6 +27,8 @@ jobs:
       - run: npm test
 
   audit:
+    # Nunca en pull_request: el secreto de la denylist quedaría al alcance de scripts del PR
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
