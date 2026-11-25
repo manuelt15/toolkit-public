@@ -4,7 +4,7 @@
 #   scripts/audit.sh <carpeta>    un directorio
 #   scripts/audit.sh --pack       el paquete tal cual se publicaría (npm pack, extraído aparte)
 # La denylist vive en el repo privado; si no se encuentra, el audit falla (nunca pasa a ciegas).
-set -u
+set -u -o pipefail
 DENY="${TOOLKIT_DENYLIST:-$HOME/.toolkit/privado/denylist.txt}"
 fail=0
 
@@ -14,6 +14,13 @@ if [ ! -f "$DENY" ]; then
 fi
 command -v gitleaks >/dev/null || { echo "audit: falta gitleaks (brew install gitleaks)" >&2; exit 1; }
 PATTERNS="$(grep -vE '^\s*(#|$)' "$DENY")"
+
+# Un patron que no compila no puede acabar en "audit: limpio": se comprueba una sola vez, aqui.
+grep -qE -f <(echo "$PATTERNS") /dev/null 2>/dev/null
+if [ $? -gt 1 ]; then
+  echo "audit: algun patron de la denylist no compila. Revisa $DENY." >&2
+  exit 1
+fi
 
 if [ "${1:-}" = "--pack" ]; then
   tmp="$(mktemp -d)"
@@ -31,10 +38,12 @@ if [ "${1:-}" = "--staged" ]; then
   gitleaks git --pre-commit --staged --redact --no-banner -v || fail=1
   # Solo líneas añadidas, sin cabeceras de diff
   hits="$(git diff --cached -U0 --no-color | grep -E '^\+[^+]' | grep -inE -f <(echo "$PATTERNS"))"
+  [ $? -le 1 ] || fail=1
 else
   dir="${1:?uso: audit.sh --staged | <carpeta>}"
   gitleaks dir "$dir" --redact --no-banner -v || fail=1
   hits="$(grep -rinE -f <(echo "$PATTERNS") "$dir")"
+  [ $? -le 1 ] || fail=1
 fi
 
 if [ -n "$hits" ]; then
