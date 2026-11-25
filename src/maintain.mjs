@@ -170,7 +170,7 @@ export function doctor(cwd, { catalog, root, version, fix = false, hasTk = true 
   if (/<!-- toolkit:public[^>]*-->[\s\S]*<!-- \/toolkit:public -->/.test(agents)) res.ok.push("AGENTS.md con el bloque del toolkit");
   else res.errors.push("AGENTS.md no tiene el bloque <!-- toolkit:public --> (el flujo de sesión no llega a los agentes)");
 
-  if (lock.perfil && !new RegExp(`<!-- toolkit:profile ${lock.perfil} -->`).test(agents)) {
+  if (lock.perfil && !new RegExp(`<!-- toolkit:profile ${String(lock.perfil).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} -->`).test(agents)) {
     res.warnings.push(`AGENTS.md no tiene el bloque del perfil ${lock.perfil}`);
   }
 
