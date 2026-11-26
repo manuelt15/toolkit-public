@@ -593,6 +593,17 @@ test("perfil: bloque propio en AGENTS.md, nombre en el lock y ningún email en e
   assert.ok(doctor(cwd, MAINT).warnings.some((w) => /bloque del perfil yo/.test(w)));
 });
 
+test("doctor: un perfil con metacaracteres no rompe el aviso del bloque", () => {
+  const cwd = tmp();
+  execute(newConfig(), catalog, { cwd, ...ROOTS, dryRun: false, log: quiet });
+  const p = join(cwd, "toolkit.lock.json");
+  const lock = JSON.parse(readFileSync(p, "utf8"));
+  lock.perfil = "a(b.c";
+  writeFileSync(p, JSON.stringify(lock));
+  const r = doctor(cwd, MAINT);
+  assert.ok(r.warnings.some((w) => w.includes("bloque del perfil a(b.c")), r.warnings.join("\n"));
+});
+
 // ── paquete ─────────────────────────────────────────────────────────────────
 
 test("npm pack solo lleva lo de la allowlist", () => {
